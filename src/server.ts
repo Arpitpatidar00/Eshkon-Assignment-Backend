@@ -33,6 +33,16 @@ app.use(
 );
 app.use(express.json({ limit: "10mb" }));
 
+// Database connection middleware (critical for Serverless environments)
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
@@ -46,17 +56,17 @@ app.get("/health", (req, res) => {
 // Global Error Handler (must be the last middleware)
 app.use(errorHandler);
 
-// Start Server
-const start = async () => {
-  try {
-    await connectDB();
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
+// Start Server conditionally (only when not running in Vercel Serverless environment)
+if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+  connectDB()
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(`🚀 Server running on http://localhost:${PORT}`);
+      });
+    })
+    .catch((error) => {
+      console.error("Failed to connect to DB:", error);
     });
-  } catch (error) {
-    console.error("Failed to start server:", error);
-    process.exit(1);
-  }
-};
+}
 
-start();
+export default app;
