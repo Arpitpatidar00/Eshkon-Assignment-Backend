@@ -1,16 +1,33 @@
-require('dotenv').config({ path: 'server/.env' });
+const path = require('path');
+require('dotenv').config({ 
+  path: process.cwd().endsWith('server') ? '.env' : 'server/.env' 
+});
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 
 async function run() {
-  await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/pagestudio');
-  const PageModel = mongoose.model('Page', new mongoose.Schema({
+  const uri = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/page-studio';
+  console.log(`Connecting to MongoDB at: ${uri}`);
+  await mongoose.connect(uri);
+  
+  // Define models inline for seeding
+  const PageModel = mongoose.models.Page || mongoose.model('Page', new mongoose.Schema({
     pageId: String,
     slug: String,
     title: String,
     sections: [mongoose.Schema.Types.Mixed]
-  }));
+  }, { timestamps: true }));
 
+  const UserModel = mongoose.models.User || mongoose.model('User', new mongoose.Schema({
+    name: String,
+    email: { type: String, unique: true },
+    password: { type: String, select: false },
+    role: String,
+    isActive: { type: Boolean, default: true }
+  }, { timestamps: true }));
+
+  // 1. Seed Page Configuration
   const demoSections = [
     {
       id: `hero-${uuidv4().slice(0, 8)}`,
@@ -69,6 +86,7 @@ async function run() {
     },
   ];
 
+  console.log("Seeding home page configuration...");
   await PageModel.findOneAndUpdate(
     { slug: 'home' },
     {
@@ -79,8 +97,44 @@ async function run() {
     },
     { upsert: true, new: true }
   );
+  console.log("✅ Page 'home' seeded.");
 
-  console.log("Demo page seeded successfully!");
+  // 2. Seed Users
+  console.log("Seeding demo users...");
+  const salt = await bcrypt.genSalt(12);
+  const defaultPasswordHash = await bcrypt.hash('password123', salt);
+
+  const demoUsers = [
+    {
+      name: "Alex Viewer",
+      email: "viewer@demo.com",
+      password: defaultPasswordHash,
+      role: "viewer"
+    },
+    {
+      name: "Sam Editor",
+      email: "editor@demo.com",
+      password: defaultPasswordHash,
+      role: "editor"
+    },
+    {
+      name: "Jordan Publisher",
+      email: "publisher@demo.com",
+      password: defaultPasswordHash,
+      role: "publisher"
+    }
+  ];
+
+  for (const user of demoUsers) {
+    await UserModel.findOneAndUpdate(
+      { email: user.email },
+      user,
+      { upsert: true, new: true }
+    );
+    console.log(`✅ Seeded user: ${user.email} (${user.role})`);
+  }
+
+  console.log("\n🎉 Seeding complete! Login password for all users is: password123");
   process.exit(0);
 }
 
