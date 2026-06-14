@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
@@ -27,7 +30,7 @@ app.use(
 // Standard Middlewares
 app.use(
   cors({
-    origin: ["http://localhost:3000", "http://localhost:3001"],
+    origin: process.env.FRONTEND_URL,
     credentials: true,
   }),
 );
